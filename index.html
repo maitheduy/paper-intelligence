@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Paper Intelligence - Phân tích Bài báo Khoa học</title>
+<style>
+  :root{
+    --bg:#0a0e1a; --bg-2:#111827; --card:#161c2c; --card-2:#1f2740;
+    --border:#2a3350; --text:#e6ebf5; --muted:#8892b0;
+    --accent:#ff6b35; --accent-2:#ffb347; --cyan:#00d4ff;
+    --danger:#ff4757; --success:#2ed573;
+    --sidebar-width: 320px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Inter','Segoe UI',system-ui,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(600px circle at 10% 10%, rgba(255,107,53,.08), transparent 50%),
+               radial-gradient(500px circle at 90% 80%, rgba(0,212,255,.06), transparent 50%);
+  }
+  .app{display:grid;grid-template-columns:var(--sidebar-width) 4px 1fr;gap:0;min-height:100vh;position:relative;z-index:1}
+  .sidebar{
+    background:linear-gradient(180deg,var(--bg-2),var(--bg));
+    border-right:1px solid var(--border); padding:20px 16px;
+    display:flex;flex-direction:column;gap:16px;
+    position:sticky;top:0;height:100vh;overflow-y:auto;overflow-x:hidden;
+  }
+  .resize-handle{background:var(--border);cursor:col-resize;transition:background .2s;position:relative;}
+  .resize-handle:hover, .resize-handle.active{background:var(--accent);}
+  .resize-handle::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:2px;height:40px;background:rgba(255,255,255,.2);border-radius:2px;}
+  
+  .logo{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:800;letter-spacing:.5px;padding:8px 4px}
+  .logo .icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#0a0e1a;font-weight:900;box-shadow:0 6px 20px rgba(255,107,53,.35);}
+  .logo span b{color:var(--accent)}
+  
+  .section-title{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);padding:8px 6px 4px;display:flex;justify-content:space-between;align-items:center;}
+  .section-title button{background:transparent;border:0;color:var(--accent);cursor:pointer;font-size:16px;font-weight:700;line-height:1;}
+  .section-title button:hover{color:var(--accent-2)}
+  
+  .folder-list{display:flex;flex-direction:column;gap:2px}
+  .folder-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;cursor:pointer;color:var(--muted);font-weight:500;font-size:13px;transition:all .15s;position:relative;}
+  .folder-item:hover{background:var(--card);color:var(--text)}
+  .folder-item.active{background:linear-gradient(90deg,rgba(255,107,53,.18),transparent);color:var(--text);border-left:3px solid var(--accent);padding-left:7px;}
+  .folder-item .count{margin-left:auto;background:var(--card-2);padding:1px 6px;border-radius:8px;font-size:10px;color:var(--muted);min-width:20px;text-align:center;}
+  .folder-item.active .count{background:rgba(255,107,53,.25);color:var(--accent-2)}
+  .folder-item .del{display:none;margin-left:4px;color:var(--danger);font-weight:700;font-size:11px}
+  .folder-item:hover .del{display:inline}
+  .folder-item:hover .count{display:none}
+  .folder-parent{font-weight:600}
+  .folder-child{padding-left:30px !important;font-size:12.5px}
+  
+  .io-buttons{margin-top:auto;display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--border)}
+  .btn{padding:10px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px;justify-content:center;transition:all .15s;}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#0a0e1a}
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(255,107,53,.3)}
+  .btn-ghost{background:var(--card);color:var(--text);border:1px solid var(--border)}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+  
+  .main{padding:24px 32px;overflow-y:auto;min-width:0}
+  .topbar{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .search{flex:1;min-width:220px;position:relative}
+  .search input{width:100%;padding:12px 14px 12px 40px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:10px;font-size:14px;outline:none;transition:border-color .15s;}
+  .search input:focus{border-color:var(--accent)}
+  .search::before{content:"🔍";position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:14px;opacity:.7}
+  
+  .tag-filter{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+  .tag-chip{padding:6px 12px;background:var(--card);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--muted);cursor:pointer;transition:all .15s;}
+  .tag-chip:hover{color:var(--text);border-color:var(--accent)}
+  .tag-chip.active{background:var(--accent);color:#0a0e1a;border-color:var(--accent);font-weight:600}
+  
+  .paper-list{display:flex;flex-direction:column;gap:8px}
+  .paper-item{padding:12px;border-radius:8px;cursor:pointer;background:var(--card);border:1px solid var(--border);transition:all .2s;position:relative;}
+  .paper-item:hover{border-color:var(--accent);transform:translateX(4px)}
+  .paper-item.active{background:linear-gradient(90deg,rgba(255,107,53,.18),transparent);border-left:3px solid var(--accent);}
+  .paper-item .title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .paper-item .meta{font-size:11px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .paper-item .folder-badge{background:var(--card-2);color:var(--cyan);padding:1px 6px;border-radius:4px;font-size:10px}
+  .paper-item .del{position:absolute;top:8px;right:8px;background:var(--danger);color:#fff;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:10px;opacity:0;transition:opacity .2s;}
+  .paper-item:hover .del{opacity:1}
+  
+  .editor-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:16px;}
+  .form-group{display:flex;flex-direction:column;gap:6px}
+  .form-group label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600}
+  .form-group input, .form-group textarea, .form-group select{padding:10px 12px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color .15s;}
+  .form-group input:focus, .form-group textarea:focus, .form-group select:focus{border-color:var(--accent)}
+  .form-group textarea{min-height:100px;resize:vertical;line-height:1.6}
+  .form-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  
+  .timestamp{font-size:11px;color:var(--muted);padding:8px 12px;background:rgba(0,212,255,.1);border-radius:6px;border-left:2px solid var(--cyan);}
+  .empty{text-align:center;padding:60px 20px;color:var(--muted)}
+  .empty .big{font-size:48px;margin-bottom:12px;opacity:.3}
+  
+  .login-overlay{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center;}
+  .login-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:420px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:fadeIn 0.3s ease-out;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+  
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--card);border:1px solid var(--success);color:var(--success);padding:12px 18px;border-radius:10px;font-weight:600;font-size:13px;z-index:200;transform:translateY(100px);opacity:0;transition:all .3s;box-shadow:0 10px 30px rgba(0,0,0,.4);}
+  .toast.show{transform:translateY(0);opacity:1}
+  .toast.error{border-color:var(--danger);color:var(--danger)}
+  
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
+  .modal-backdrop.show{display:flex}
+  .modal{background:var(--bg-2);border:1px solid var(--border);border-radius:14px;width:100%;max-width:450px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+  .modal h2{margin-bottom:18px;color:var(--text);font-size:20px;display:flex;align-items:center;gap:10px}
+  .modal h2::before{content:"";width:4px;height:22px;background:var(--accent);border-radius:2px}
+  .modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+  
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+  
+  @media (max-width:768px){
+    .app{grid-template-columns:1fr}
+    .resize-handle{display:none}
+    .sidebar{position:relative;height:auto}
+    .main{padding:16px}
+    .form-row{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-box">
+    <div class="logo" style="justify-content:center;margin-bottom:24px;">
+      <div class="icon">📄</div>
+      <span>Paper<b>Intelligence</b></span>
+    </div>
+    <h2 style="margin-bottom:12px;">Phân tích Bài báo Khoa học</h2>
+    <p style="color:var(--muted);margin-bottom:32px;text-align:center;line-height:1.6;">
+      Lưu trữ, phân tích cấu trúc (Problem, Method, Result) và xây dựng kho tri thức nghiên cứu cá nhân.
+    </p>
+    <button id="loginBtn" class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;font-size:15px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" style="margin-right:8px;"><path fill="currentColor" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27 3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10 5.35 0 9.25-3.67 9.25-9.09 0-1.15-.15-1.81-.15-1.81Z"/></svg>
+      <span id="loginBtnText">Đăng nhập bằng Google</span>
+    </button>
+    <p id="loginStatus" style="margin-top:16px;font-size:11px;color:var(--danger);display:none;"></p>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="icon">📄</div>
+      <span>Paper<b>Intelligence</b></span>
+    </div>
+    <div>
+      <div class="section-title">
+        <span>Phân loại</span>
+        <button onclick="window.openFolderModal()" title="Thêm thư mục">+</button>
+      </div>
+      <div class="folder-list" id="folderList"></div>
+    </div>
+    <div class="io-buttons">
+      <button class="btn btn-primary" onclick="window.createNewPaper()">＋ Bài báo mới</button>
+      <button class="btn btn-ghost" onclick="window.exportData()">⬇ Xuất JSON</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">⬆ Nhập JSON</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="window.importData(event)"/>
+    </div>
+    <div id="userProfile" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+      <div id="syncStatus" style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;margin-bottom:10px;">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--muted);display:inline-block;"></span>
+        <span id="syncStatusText">Chưa đăng nhập</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <img id="userAvatar" src="" style="width:32px;height:32px;border-radius:50%;border:2px solid var(--accent);object-fit:cover;"/>
+        <div style="flex:1;overflow:hidden;">
+          <div id="userName" style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+          <div id="userEmail" style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+        </div>
+      </div>
+      <button class="btn btn-ghost" onclick="window.logout()" style="width:100%;justify-content:center;font-size:12px;border-color:var(--danger);color:var(--danger);">Đăng xuất</button>
+    </div>
+  </aside>
+
+  <div class="resize-handle" id="resizeHandle" title="Kéo để điều chỉnh kích thước"></div>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="search">
+        <input type="text" id="searchInput" placeholder="Tìm theo tiêu đề, tác giả, ý tưởng..." oninput="window.handleSearchInput()"/>
+      </div>
+    </div>
+    <div class="tag-filter" id="tagFilter"></div>
+    <div class="paper-list" id="paperList" style="margin-bottom: 24px;"></div>
+    <div id="editorContainer"></div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="folderModal">
+  <div class="modal">
+    <h2>Thêm Thư mục</h2>
+    <div class="form-group">
+      <label>Tên thư mục</label>
+      <input type="text" id="fName" placeholder="VD: AI Research, Transformer Papers..."/>
+    </div>
+    <div class="form-group">
+      <label>Loại thư mục</label>
+      <select id="fParent">
+        <option value="">📁 Thư mục gốc (cấp 1)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="window.closeModal('folderModal')">Hủy</button>
+      <button class="btn btn-primary" onclick="window.saveFolder()">Tạo</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC0g9wKsYyd92ZTDvhHr3pEw4hdeLmCMHI",
+    authDomain: "paper-intelligence.firebaseapp.com",
+    projectId: "paper-intelligence",
+    storageBucket: "paper-intelligence.firebasestorage.app",
+    messagingSenderId: "816017882117",
+    appId: "1:816017882117:web:1989bc3465d3a86f66706c",
+    measurementId: "G-YGNJ3C8ZM0"
+  };
+
+  let auth, db, provider;
+  let firebaseInitialized = false;
+  
+  try {
+    const app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    provider = new GoogleAuthProvider();
+    firebaseInitialized = true;
+    console.log("✅ Firebase + Firestore khởi tạo thành công!");
+  } catch (e) {
+    console.error("❌ Lỗi khởi tạo Firebase:", e);
+  }
+
+  const STORAGE_KEY = 'paperIntelligence_v1';
+  const SIDEBAR_KEY = 'sidebarWidth_v1';
+  let state = { 
+    folders: [], 
+    papers: [], 
+    activeFolder: 'all', 
+    activeTag: null, 
+    selectedPaperId: null, 
+    user: null 
+  };
+  
+  let isSyncingFromCloud = false;
+  let unsubscribeUserDoc = null;
+  let saveDebounceTimer = null;
+  let isEditingPaper = false;
+  let lastCloudVersion = null;
+
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function escapeAttr(s) { return escapeHtml(s).replace(/'/g, "\\'"); }
+  
+  function formatTimestamp(timestamp) {
+    if (!timestamp) return 'Chưa lưu';
+    const date = new Date(timestamp);
+    return date.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function toast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (type === 'error' ? ' error' : '');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function showLoginError(msg) {
+    const el = document.getElementById('loginStatus');
+    el.style.display = 'block';
+    el.textContent = msg;
+  }
+
+  function setLoading(loading) {
+    const btn = document.getElementById('loginBtn');
+    const btnText = document.getElementById('loginBtnText');
+    if (loading) {
+      btn.disabled = true;
+      btnText.textContent = 'Đang xử lý...';
+    } else {
+      btn.disabled = false;
+      btnText.textContent = 'Đăng nhập bằng Google';
+    }
+  }
+
+  function updateSyncStatus(status, text) {
+    const dot = document.querySelector('#syncStatus span:first-child');
+    const textEl = document.getElementById('syncStatusText');
+    const colors = { syncing: 'var(--muted)', synced: 'var(--success)', error: 'var(--danger)', typing: '#ffb347' };
+    if (dot) dot.style.background = colors[status] || colors.syncing;
+    if (textEl) textEl.textContent = text;
+  }
+
+  function setEditingPaper(editing) {
+    isEditingPaper = editing;
+  }
+
+  window.loginWithGoogle = async () => {
+    if (!firebaseInitialized) { toast('Firebase chưa khởi tạo.', 'error'); return; }
+    setLoading(true);
+    showLoginError('');
+    try {
+      await signInWithPopup(auth, provider);
+      toast('Đăng nhập thành công!');
+    } catch (popupError) {
+      console.error("Lỗi:", popupError);
+      showLoginError('Lỗi: ' + popupError.message);
+      toast('Lỗi đăng nhập', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  document.getElementById('loginBtn').addEventListener('click', window.loginWithGoogle);
+
+  window.logout = () => {
+    if(confirm("Bạn có chắc muốn đăng xuất?")) {
+      signOut(auth).then(() => { 
+        toast("Đã đăng xuất"); 
+        if (unsubscribeUserDoc) { unsubscribeUserDoc(); unsubscribeUserDoc = null; }
+      }).catch(err => toast("Lỗi: " + err.message, 'error'));
+    }
+  };
+
+  function saveToCloud() {
+    if (!state.user || !db) return;
+    updateSyncStatus('syncing', 'Đang lưu lên đám mây...');
+    const userRef = doc(db, 'users', state.user.uid);
+    setDoc(userRef, { 
+      folders: state.folders, 
+      papers: state.papers,
+      lastUpdated: new Date().toISOString(),
+      version: Date.now()
+    }, { merge: true })
+      .then(() => {
+        updateSyncStatus('synced', 'Đã đồng bộ đám mây');
+      })
+      .catch(err => {
+        console.error("❌ Lỗi lưu Firestore:", err);
+        updateSyncStatus('error', 'Lỗi đồng bộ');
+        toast('Lỗi lưu đám mây: ' + err.message, 'error');
+      });
+  }
+
+  function debouncedSaveToCloud() {
+    if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+    saveDebounceTimer = setTimeout(() => { saveToCloud(); }, 1500);
+  }
+
+  function setupCloudSync(user) {
+    if (unsubscribeUserDoc) unsubscribeUserDoc();
+    updateSyncStatus('syncing', 'Đang kết nối...');
+    
+    const userRef = doc(db, 'users', user.uid);
+    unsubscribeUserDoc = onSnapshot(userRef, (docSnap) => {
+      isSyncingFromCloud = true;
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const cloudVersion = data.version || 0;
+        
+        if (cloudVersion === lastCloudVersion) {
+          isSyncingFromCloud = false;
+          return;
+        }
+        lastCloudVersion = cloudVersion;
+        
+        state.folders = data.folders || [];
+        state.papers = data.papers || [];
+        
+        updateSyncStatus('synced', 'Đã đồng bộ đám mây');
+        
+        if (isEditingPaper) {
+          renderFolders();
+          renderListAndTags();
+        } else {
+          window.render();
+        }
+      } else {
+        const maId = uid();
+        const ch1Id = uid();
+        state.folders = [
+          { id: maId, name: 'Đang đọc', parentId: null },
+          { id: ch1Id, name: 'Đã đọc & Tóm tắt', parentId: null },
+          { id: uid(), name: 'Ý tưởng nghiên cứu', parentId: null }
+        ];
+        state.papers = [];
+        updateSyncStatus('syncing', 'Đang tạo dữ liệu mẫu...');
+        saveToCloud();
+        window.render();
+      }
+      
+      setTimeout(() => { isSyncingFromCloud = false; }, 100);
+    }, (error) => {
+      console.error("❌ Lỗi lắng nghe Firestore:", error);
+      updateSyncStatus('error', 'Lỗi kết nối');
+      toast('Lỗi đồng bộ: ' + error.message, 'error');
+    });
+  }
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      state.user = user;
+      document.getElementById('loginOverlay').style.display = 'none';
+      document.getElementById('userProfile').style.display = 'block';
+      document.getElementById('userAvatar').src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'U')}&background=ff6b35&color=fff`;
+      document.getElementById('userName').textContent = user.displayName || 'Người dùng';
+      document.getElementById('userEmail').textContent = user.email;
+      setupCloudSync(user);
+    } else {
+      state.user = null;
+      if (unsubscribeUserDoc) { unsubscribeUserDoc(); unsubscribeUserDoc = null; }
+      document.getElementById('loginOverlay').style.display = 'flex';
+      document.getElementById('userProfile').style.display = 'none';
+      updateSyncStatus('syncing', 'Chưa đăng nhập');
+      loadLocalOnly();
+      window.render();
+    }
+  });
+
+  function loadLocalOnly() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        state.folders = d.folders || [];
+        state.papers = d.papers || [];
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  function saveLocal() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ folders: state.folders, papers: state.papers }));
+  }
+
+  function saveData() {
+    saveLocal();
+    if (!isSyncingFromCloud && state.user) {
+      debouncedSaveToCloud();
+      updateSyncStatus('typing', 'Đang gõ... (tự động lưu sau 1.5s)');
+    }
+  }
+
+  function loadSidebarWidth() {
+    const saved = localStorage.getItem(SIDEBAR_KEY);
+    if (saved) {
+      const w = parseInt(saved);
+      if (w >= 250 && w <= 600) {
+        document.documentElement.style.setProperty('--sidebar-width', w + 'px');
+      }
+    }
+  }
+
+  function getChildFolderIds(parentId) {
+    const children = state.folders.filter(f => f.parentId === parentId).map(f => f.id);
+    const all = [...children];
+    children.forEach(childId => { all.push(...getChildFolderIds(childId)); });
+    return all;
+  }
+
+  window.createNewPaper = () => {
+    let defaultFolderId = state.activeFolder !== 'all' ? state.activeFolder : (state.folders[0]?.id || '');
+    const newPaper = {
+      id: uid(),
+      title: 'Bài báo mới',
+      authors: '',
+      year: new Date().getFullYear().toString(),
+      venue: '',
+      doi: '',
+      abstract: '',
+      problem: '',
+      method: '',
+      result: '',
+      limitation: '',
+      newIdeas: '',
+      folderId: defaultFolderId,
+      tags: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    state.papers.unshift(newPaper);
+    state.selectedPaperId = newPaper.id;
+    state.activeTag = null;
+    saveData();
+    window.render();
+    setTimeout(() => document.getElementById('paperTitle')?.focus(), 100);
+    toast('Đã tạo bài báo mới');
+  };
+
+  window.selectPaper = (id) => {
+    state.selectedPaperId = id;
+    setEditingPaper(false);
+    window.render();
+  };
+
+  window.deletePaper = (id) => {
+    if (!confirm('Xóa bài báo này?')) return;
+    state.papers = state.papers.filter(p => p.id !== id);
+    if (state.selectedPaperId === id) { state.selectedPaperId = null; setEditingPaper(false); }
+    saveData();
+    window.render();
+    toast('Đã xóa bài báo');
+  };
+
+  window.openFolderModal = () => {
+    document.getElementById('fName').value = '';
+    const parentSelect = document.getElementById('fParent');
+    parentSelect.innerHTML = '<option value="">📁 Thư mục gốc (cấp 1)</option>';
+    state.folders.filter(f => f.parentId === null).forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.textContent = '📂 ' + f.name;
+      parentSelect.appendChild(opt);
+    });
+    window.openModal('folderModal');
+    setTimeout(() => document.getElementById('fName').focus(), 50);
+  };
+
+  window.saveFolder = () => {
+    const name = document.getElementById('fName').value.trim();
+    const parentId = document.getElementById('fParent').value || null;
+    if (!name) { toast('Nhập tên thư mục', 'error'); return; }
+    if (parentId) {
+      const parentFolder = state.folders.find(f => f.id === parentId);
+      if (parentFolder && parentFolder.parentId !== null) {
+        toast('Chỉ hỗ trợ tối đa 2 cấp thư mục!', 'error');
+        return;
+      }
+    }
+    state.folders.push({ id: uid(), name, parentId });
+    saveData();
+    window.render();
+    window.closeModal('folderModal');
+    toast('Đã tạo thư mục');
+  };
+
+  window.deleteFolder = (id) => {
+    const isParent = state.folders.some(f => f.parentId === id);
+    const childIds = getChildFolderIds(id);
+    const allRelatedIds = [id, ...childIds];
+    const paperCount = state.papers.filter(p => allRelatedIds.includes(p.folderId)).length;
+    const msg = isParent ? `Xóa thư mục này và TẤT CẢ thư mục con? (${paperCount} bài báo sẽ bị xóa theo)` : `Xóa thư mục này? (${paperCount} bài báo sẽ bị xóa theo)`;
+    if (!confirm(msg)) return;
+    state.folders = state.folders.filter(f => !allRelatedIds.includes(f.id));
+    state.papers = state.papers.filter(p => !allRelatedIds.includes(p.folderId));
+    if (allRelatedIds.includes(state.activeFolder)) state.activeFolder = 'all';
+    if (allRelatedIds.includes(state.selectedPaperId)) { state.selectedPaperId = null; setEditingPaper(false); }
+    saveData();
+    window.render();
+  };
+
+  window.selectFolder = (id) => { state.activeFolder = id; state.activeTag = null; state.selectedPaperId = null; setEditingPaper(false); window.render(); };
+  window.filterTag = (t) => { state.activeTag = t; state.selectedPaperId = null; setEditingPaper(false); window.render(); };
+  window.handleSearchInput = () => { renderFolders(); renderListAndTags(); };
+
+  window.updatePaper = () => {
+    const paper = state.papers.find(p => p.id === state.selectedPaperId);
+    if (!paper) return;
+    
+    setEditingPaper(true);
+    
+    paper.title = document.getElementById('paperTitle').value;
+    paper.authors = document.getElementById('paperAuthors').value;
+    paper.year = document.getElementById('paperYear').value;
+    paper.venue = document.getElementById('paperVenue').value;
+    paper.doi = document.getElementById('paperDoi').value;
+    paper.abstract = document.getElementById('paperAbstract').value;
+    paper.problem = document.getElementById('paperProblem').value;
+    paper.method = document.getElementById('paperMethod').value;
+    paper.result = document.getElementById('paperResult').value;
+    paper.limitation = document.getElementById('paperLimitation').value;
+    paper.newIdeas = document.getElementById('paperNewIdeas').value;
+    paper.folderId = document.getElementById('paperFolder').value;
+    const tagsInput = document.getElementById('paperTags').value;
+    paper.tags = tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+    paper.updatedAt = new Date().toISOString();
+    
+    saveLocal();
+    if (state.user && !isSyncingFromCloud) {
+      debouncedSaveToCloud();
+      updateSyncStatus('typing', 'Đang gõ... (tự động lưu sau 1.5s)');
+    }
+    renderFolders();
+    renderListAndTags();
+  };
+
+  window.editorBlur = () => {
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (!active || !active.closest('.editor-card')) {
+        setEditingPaper(false);
+      }
+    }, 200);
+  };
+
+  window.render = () => { renderFolders(); renderListAndTags(); renderEditor(); };
+
+  function renderFolders() {
+    const list = document.getElementById('folderList');
+    function countPapersInFolder(folderId) {
+      const allIds = [folderId, ...getChildFolderIds(folderId)];
+      return state.papers.filter(p => allIds.includes(p.folderId)).length;
+    }
+    function countDirectPapers(folderId) {
+      return state.papers.filter(p => p.folderId === folderId).length;
+    }
+    let html = `<div class="folder-item ${state.activeFolder === 'all' ? 'active' : ''}" onclick="window.selectFolder('all')">
+      <span class="folder-icon">📚</span><span>Tất cả</span><span class="count">${state.papers.length}</span></div>`;
+    const parentFolders = state.folders.filter(f => f.parentId === null);
+    parentFolders.forEach(parent => {
+      const childFolders = state.folders.filter(f => f.parentId === parent.id);
+      const totalPapers = countPapersInFolder(parent.id);
+      const isActive = state.activeFolder === parent.id;
+      html += `<div class="folder-item folder-parent ${isActive ? 'active' : ''}" onclick="window.selectFolder('${parent.id}')">
+        <span class="folder-icon">📁</span><span>${escapeHtml(parent.name)}</span><span class="count">${totalPapers}</span>
+        <span class="del" onclick="event.stopPropagation();window.deleteFolder('${parent.id}')" title="Xóa">✕</span></div>`;
+      childFolders.forEach(child => {
+        const directPapers = countDirectPapers(child.id);
+        const isChildActive = state.activeFolder === child.id;
+        html += `<div class="folder-item folder-child ${isChildActive ? 'active' : ''}" onclick="window.selectFolder('${child.id}')">
+          <span class="folder-icon">📂</span><span>${escapeHtml(child.name)}</span><span class="count">${directPapers}</span>
+          <span class="del" onclick="event.stopPropagation();window.deleteFolder('${child.id}')" title="Xóa">✕</span></div>`;
+      });
+    });
+    list.innerHTML = html;
+  }
+
+  function renderListAndTags() {
+    const allTags = new Set();
+    state.papers.forEach(p => (p.tags || []).forEach(t => allTags.add(t)));
+    const tagContainer = document.getElementById('tagFilter');
+    if (allTags.size === 0) {
+      tagContainer.innerHTML = '';
+    } else {
+      let html = `<span class="tag-chip ${state.activeTag === null ? 'active' : ''}" onclick="window.filterTag(null)">Tất cả</span>`;
+      [...allTags].sort().forEach(t => {
+        html += `<span class="tag-chip ${state.activeTag === t ? 'active' : ''}" onclick="window.filterTag('${escapeAttr(t)}')">#${escapeHtml(t)}</span>`;
+      });
+      tagContainer.innerHTML = html;
+    }
+    const list = document.getElementById('paperList');
+    const q = document.getElementById('searchInput').value.trim().toLowerCase();
+    let papers = state.papers.slice();
+    if (state.activeFolder !== 'all') {
+      const allFolderIds = [state.activeFolder, ...getChildFolderIds(state.activeFolder)];
+      papers = papers.filter(p => allFolderIds.includes(p.folderId));
+    }
+    if (state.activeTag) {
+      papers = papers.filter(p => (p.tags || []).includes(state.activeTag));
+    }
+    if (q) {
+      papers = papers.filter(p => 
+        p.title.toLowerCase().includes(q) || 
+        p.authors.toLowerCase().includes(q) ||
+        p.abstract.toLowerCase().includes(q) ||
+        (p.tags || []).some(t => t.toLowerCase().includes(q))
+      );
+    }
+    papers.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    if (papers.length === 0) {
+      list.innerHTML = `<div class="empty" style="padding:20px;"><div class="big" style="font-size:32px">📭</div><div>${q || state.activeTag ? 'Không tìm thấy' : 'Chưa có bài báo nào'}</div></div>`;
+      return;
+    }
+    list.innerHTML = papers.map(p => {
+      const folder = state.folders.find(f => f.id === p.folderId);
+      let folderPath = folder ? (folder.parentId ? `${escapeHtml(state.folders.find(f=>f.id===folder.parentId)?.name || '')} › ${escapeHtml(folder.name)}` : escapeHtml(folder.name)) : '';
+      return `
+      <div class="paper-item ${p.id === state.selectedPaperId ? 'active' : ''}" onclick="window.selectPaper('${p.id}')">
+        <div class="title">${escapeHtml(p.title || 'Không tiêu đề')}</div>
+        <div class="meta">
+          ${folderPath ? `<span class="folder-badge">${folderPath}</span>` : ''}
+          <span>${escapeHtml(p.authors || 'Chưa có tác')}</span>
+          <span>${p.year}</span>
+        </div>
+        <span class="del" onclick="event.stopPropagation();window.deletePaper('${p.id}')" title="Xóa">✕</span>
+      </div>`;
+    }).join('');
+  }
+
+  function renderEditor() {
+    const container = document.getElementById('editorContainer');
+    const paper = state.papers.find(p => p.id === state.selectedPaperId);
+    if (!paper) {
+      container.innerHTML = `<div class="empty"><div class="big">📄</div><div>Chọn hoặc tạo bài báo mới để bắt đầu phân tích</div></div>`;
+      return;
+    }
+    const parentFolders = state.folders.filter(f => f.parentId === null);
+    let folderOptions = '<option value="">-- Không chọn --</option>';
+    parentFolders.forEach(p => {
+      folderOptions += `<option value="${p.id}" ${p.id === paper.folderId ? 'selected' : ''}>📁 ${escapeHtml(p.name)}</option>`;
+      state.folders.filter(f => f.parentId === p.id).forEach(c => {
+        folderOptions += `<option value="${c.id}" ${c.id === paper.folderId ? 'selected' : ''}>  📂 ${escapeHtml(c.name)}</option>`;
+      });
+    });
+    container.innerHTML = `
+      <div class="editor-card" onblur="window.editorBlur()">
+        <div class="form-group">
+          <label>Tiêu đề bài báo</label>
+          <input type="text" id="paperTitle" value="${escapeHtml(paper.title)}" oninput="window.updatePaper()" placeholder="Nhập tiêu đề..."/>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Tác giả</label>
+            <input type="text" id="paperAuthors" value="${escapeHtml(paper.authors)}" oninput="window.updatePaper()" placeholder="VD: Smith, J. et al."/>
+          </div>
+          <div class="form-group">
+            <label>Năm</label>
+            <input type="text" id="paperYear" value="${escapeHtml(paper.year)}" oninput="window.updatePaper()" placeholder="2023"/>
+          </div>
+          <div class="form-group">
+            <label>Tạp chí / Hội nghị</label>
+            <input type="text" id="paperVenue" value="${escapeHtml(paper.venue)}" oninput="window.updatePaper()" placeholder="VD: NeurIPS, Nature..."/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>DOI / Link</label>
+          <input type="text" id="paperDoi" value="${escapeHtml(paper.doi)}" oninput="window.updatePaper()" placeholder="https://doi.org/..."/>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="form-group">
+            <label>Thư mục</label>
+            <select id="paperFolder" onchange="window.updatePaper()">${folderOptions}</select>
+          </div>
+          <div class="form-group">
+            <label>Thẻ (cách nhau bởi dấu phẩy)</label>
+            <input type="text" id="paperTags" value="${escapeHtml((paper.tags || []).join(', '))}" oninput="window.updatePaper()" placeholder="VD: transformer, attention, NLP"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Tóm tắt (Abstract)</label>
+          <textarea id="paperAbstract" oninput="window.updatePaper()" placeholder="Tóm tắt nội dung chính...">${escapeHtml(paper.abstract)}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Vấn đề nghiên cứu (Problem)</label>
+          <textarea id="paperProblem" oninput="window.updatePaper()" placeholder="Bài báo này giải quyết vấn đề gì?">${escapeHtml(paper.problem)}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Phương pháp (Method)</label>
+          <textarea id="paperMethod" oninput="window.updatePaper()" placeholder="Họ đã làm như thế nào?">${escapeHtml(paper.method)}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Kết quả (Result)</label>
+          <textarea id="paperResult" oninput="window.updatePaper()" placeholder="Kết quả đạt được là gì?">${escapeHtml(paper.result)}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Hạn chế (Limitation)</label>
+          <textarea id="paperLimitation" oninput="window.updatePaper()" placeholder="Điểm yếu hoặc giới hạn của phương pháp...">${escapeHtml(paper.limitation)}</textarea>
+        </div>
+        <div class="form-group">
+          <label style="color:var(--accent)">💡 Ý tưởng mới / Ghi chú cá nhân</label>
+          <textarea id="paperNewIdeas" oninput="window.updatePaper()" style="border-color:var(--accent)" placeholder="Ý tưởng mở rộng, câu hỏi nảy sinh...">${escapeHtml(paper.newIdeas)}</textarea>
+        </div>
+        <div class="timestamp">
+          <strong>Tạo:</strong> ${formatTimestamp(paper.createdAt)} | 
+          <strong>Cập nhật:</strong> ${formatTimestamp(paper.updatedAt)}
+        </div>
+      </div>
+    `;
+  }
+
+  window.openModal = (id) => { document.getElementById(id).classList.add('show'); }
+  window.closeModal = (id) => { document.getElementById(id).classList.remove('show'); }
+  document.querySelectorAll('.modal-backdrop').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) window.closeModal(m.id); });
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop.show').forEach(m => window.closeModal(m.id));
+  });
+
+  window.exportData = () => {
+    const data = { version: 1, exportedAt: new Date().toISOString(), folders: state.folders, papers: state.papers, user: state.user ? { email: state.user.email } : null };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `paper-intelligence-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url);
+    toast('Đã xuất file JSON');
+  };
+
+  window.importData = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const d = JSON.parse(ev.target.result);
+        if (!d.papers || !Array.isArray(d.papers)) throw new Error('Format không hợp lệ');
+        if (!confirm(`Nhập ${d.papers.length} bài báo?\n(Dữ liệu hiện tại sẽ bị ghi đè)`)) return;
+        state.folders = d.folders || []; state.papers = d.papers; state.selectedPaperId = null; state.activeFolder = 'all'; state.activeTag = null; setEditingPaper(false);
+        saveData(); window.render(); toast('Đã nhập dữ liệu thành công');
+      } catch (err) { toast('Lỗi: ' + err.message, 'error'); }
+    };
+    reader.readAsText(file); e.target.value = '';
+  };
+
+  const resizeHandle = document.getElementById('resizeHandle');
+  let isResizing = false, startX = 0, startWidth = 0;
+  resizeHandle.addEventListener('mousedown', (e) => {
+    isResizing = true; startX = e.clientX; startWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'));
+    resizeHandle.classList.add('active'); document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    let newWidth = Math.max(250, Math.min(600, startWidth + (e.clientX - startX)));
+    document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+  });
+  document.addEventListener('mouseup', () => {
+    if (isResizing) {
+      isResizing = false; resizeHandle.classList.remove('active'); document.body.style.cursor = ''; document.body.style.userSelect = '';
+      localStorage.setItem(SIDEBAR_KEY, parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width')));
+    }
+  });
+
+  loadSidebarWidth();
+  console.log(" [App] Paper Intelligence v1.0 đã sẵn sàng");
+</script>
+</body>
+</html>
